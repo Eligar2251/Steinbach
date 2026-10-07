@@ -1,0 +1,10 @@
+.godot/
+*.tmp
+*.svg.import
+*.log
+export/
+.env
+.env.*
+!.env.example
+supabase/.temp/
+supabase/.branches/

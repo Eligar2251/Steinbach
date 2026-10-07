@@ -1,0 +1,30 @@
+[
+  {
+    "id": 0,
+    "name": "Империя",
+    "color": "#e76f65",
+    "biome": "grass",
+    "bonus": "attack"
+  },
+  {
+    "id": 1,
+    "name": "Альянс леса",
+    "color": "#73cda0",
+    "biome": "forest",
+    "bonus": "forest"
+  },
+  {
+    "id": 2,
+    "name": "Северяне",
+    "color": "#75b8eb",
+    "biome": "snow",
+    "bonus": "snow"
+  },
+  {
+    "id": 3,
+    "name": "Пустынники",
+    "color": "#efcc76",
+    "biome": "desert",
+    "bonus": "stars"
+  }
+]

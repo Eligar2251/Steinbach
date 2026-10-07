@@ -1,0 +1,25 @@
+name: Godot checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  headless:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.3
+        run: |
+          curl -fL https://github.com/godotengine/godot-builds/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip -o /tmp/godot.zip
+          unzip /tmp/godot.zip -d /tmp/godot
+          echo '/tmp/godot' >> "$GITHUB_PATH"
+      - name: Import and parse
+        run: |
+          Godot_v4.3-stable_linux.x86_64 --headless --editor --path . --import 2>&1 | tee /tmp/import.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|ERROR:' /tmp/import.log
+      - name: Rules and scenes
+        run: |
+          set -o pipefail
+          Godot_v4.3-stable_linux.x86_64 --headless --path . tests/SmokeTests.tscn 2>&1 | tee /tmp/rules.log
+          ! grep -E 'SCRIPT ERROR|ERROR:' /tmp/rules.log
+          Godot_v4.3-stable_linux.x86_64 --headless --path . tests/SceneTests.tscn 2>&1 | tee /tmp/scenes.log
+          ! grep -E 'SCRIPT ERROR|ERROR:' /tmp/scenes.log
