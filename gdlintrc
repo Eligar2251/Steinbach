@@ -1,0 +1,3 @@
+# Guard-style validation intentionally uses early returns; GameManager exposes gameplay commands.
+max-returns: 80
+max-public-methods: 40
