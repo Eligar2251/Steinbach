@@ -26,7 +26,7 @@ godot --headless --path . tests/SmokeTests.tscn
 godot --headless --path . tests/SceneTests.tscn
 ```
 
-Также добавлен GitHub Actions workflow `.github/workflows/godot.yml`; он запускает импорт и оба набора тестов. В этой сессии workflow на GitHub не запускался (изменения не пушились).
+CI-файл в репозиторий не включен: пуш с `.github/workflows/*` отклонен настройками прав GitHub App, поэтому проверки запускались локально в этой среде.
 
 Дополнительно проверено на диске этой среды: после прогона создан `~/.local/share/godot/app_userdata/HexEmpire/saves/hexempire_saves.json` со слотом `autosave` (карта 10, раунд 2) и резервной копией `.bak`.
 
