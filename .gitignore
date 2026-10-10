@@ -1,10 +1,16 @@
-.godot/
-*.tmp
-*.svg.import
+# сборка
+build/
+src/assets_gen.c
+release/*.zip
+
+# сохранения и логи игры
+*.sav
 *.log
-export/
-.env
-.env.*
-!.env.example
-supabase/.temp/
-supabase/.branches/
+saves/
+
+# мусор
+*.tmp
+*.o
+*.a
+__pycache__/
+.godot/
