@@ -1,5 +1,6 @@
 /* events.c — случайные события в пути, автобои, отчёты о сражениях. */
 #include "game.h"
+#include "battle.h"
 #include "rng.h"
 #include <string.h>
 #include <stdio.h>
@@ -357,17 +358,20 @@ void events_resolve_choice(int choice) {
     s_event_id = -1;
 
     if (battle != 0) {
-        /* сразу автобой */
+        /* тактический бой: запускаем поле, преамбула события — в отчёт */
         BattleReport tmp = *br;
-        battle_autofight(br, 30 + rng_range(0, 60), "Разбойники", true);
-        /* дописываем преамбулу */
-        BattleReport fight = *br;
-        br->n_lines = 0;
-        for (int i = 0; i < tmp.n_lines && br->n_lines < MAX_BATTLE_LINES - fight.n_lines - 2; i++)
-            snprintf(br->lines[br->n_lines++], 128, "%s", tmp.lines[i]);
-        snprintf(br->lines[br->n_lines++], 128, "--- Схватка ---");
-        for (int i = 0; i < fight.n_lines && br->n_lines < MAX_BATTLE_LINES; i++)
-            snprintf(br->lines[br->n_lines++], 128, "%s", fight.lines[i]);
-        br->won = fight.won;
+        static const char* BATTLE_ENEMIES[] = {
+            "Разбойники", "Бандиты", "Дезертиры", "Ополчение"
+        };
+        int fi = rng_range(0, 3);
+        const char* ename = BATTLE_ENEMIES[fi];
+        int terrain = BT_T_GRASS;
+        if (g.terrain[(int)(g.party_y) * g.world_w + (int)(g.party_x)] == TERR_FOREST)
+            terrain = BT_T_FOREST;
+        bt_launch(BT_CTX_EVENT, -1, -1,
+                  fi == 0 ? BT_F_RAIDERS : (fi == 1 ? BT_F_BANDITS :
+                   (fi == 2 ? BT_F_DESERTERS : BT_F_MILITIA)),
+                  30 + rng_range(0, 60), ename, terrain, true);
+        for (int i = 0; i < tmp.n_lines; i++) bt_pre_add(tmp.lines[i]);
     }
 }

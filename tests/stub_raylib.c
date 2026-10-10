@@ -62,6 +62,9 @@ void DrawRectangleRounded(Rectangle r, float ro, int se, Color c) {
 void DrawRectangleRoundedLines(Rectangle r, float ro, int se, Color c) { (void)r; (void)ro; (void)se; (void)c; }
 void DrawRectangleRoundedLinesEx(Rectangle r, float ro, int se, float t, Color c) { (void)r; (void)ro; (void)se; (void)t; (void)c; }
 void DrawCircleV(Vector2 c, float r, Color col) { (void)c; (void)r; (void)col; }
+void DrawCircle(int cx, int cy, float r, Color col) { (void)cx; (void)cy; (void)r; (void)col; }
+void DrawEllipse(int cx, int cy, float rh, float rv, Color col) { (void)cx; (void)cy; (void)rh; (void)rv; (void)col; }
+void DrawLineEx(Vector2 a, Vector2 b, float t, Color col) { (void)a; (void)b; (void)t; (void)col; }
 void DrawCircleLines(int cx, int cy, float r, Color c) { (void)cx; (void)cy; (void)r; (void)c; }
 void DrawTexturePro(Texture2D t, Rectangle s, Rectangle d, Vector2 o, float rot, Color c) {
     if (t.id == 0) { /* допустимо, raylib бы залогировал */ }

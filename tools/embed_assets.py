@@ -9,6 +9,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEX = os.path.join(ROOT, "assets", "textures")
+SPRITES = os.path.join(ROOT, "assets", "sprites")
 FONTS = os.path.join(ROOT, "assets", "fonts")
 
 def c_ident(name):
@@ -36,6 +37,13 @@ def main():
             continue
         var = c_ident(fn)
         emit(os.path.join(TEX, fn), var)
+        entries.append((fn[:-4], var))
+
+    for fn in sorted(os.listdir(SPRITES)):
+        if not fn.endswith(".png"):
+            continue
+        var = c_ident("SP_" + fn)
+        emit(os.path.join(SPRITES, fn), var)
         entries.append((fn[:-4], var))
 
     font_vars = {

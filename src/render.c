@@ -1,11 +1,13 @@
 /* render.c — все экраны игры: карта, города, отряд, модальные окна. */
 #include "ui.h"
 #include "game.h"
+#include "render.h"
+#include "battle.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 
-typedef enum { SC_MENU, SC_MAP, SC_TOWN, SC_PARTY } Screen;
+typedef enum { SC_MENU, SC_MAP, SC_TOWN, SC_PARTY, SC_BATTLE } Screen;
 
 static Screen s_screen = SC_MENU;
 static int s_town_idx = -1;
@@ -35,6 +37,12 @@ static TexId terrain_tex[TERR_COUNT] = {
 };
 
 static TexId town_icon_tex[4] = { TEX_IC_VILLAGE, TEX_IC_TOWN, TEX_IC_CITY, TEX_IC_CASTLE };
+static const char* loc_icon_spr[LOC_TYPE_COUNT] = {
+    "mr_struct_12", "mr_env_21", "mr_env_11", "mr_struct_04", "mr_struct_19"
+};
+static const char* town_icon_spr[4] = {
+    "mr_struct_01", "mr_struct_17", "mr_struct_20", "mr_struct_02"
+};
 static TexId loc_icon_tex[LOC_TYPE_COUNT] = {
     TEX_IC_RUINS, TEX_IC_CAMP, TEX_IC_MINE, TEX_IC_SHRINE, TEX_IC_FARM,
 };
@@ -272,6 +280,32 @@ static void draw_map_screen(float dt) {
         }
     }
 
+    /* --- декор: деревья и камни на тайлах --- */
+    for (int y = y0; y <= y1; y++) {
+        for (int x = x0; x <= x1; x++) {
+            if (x < 0 || y < 0 || x >= g.world_w || y >= g.world_h) continue;
+            int t = g.terrain[y * g.world_w + x];
+            int dv = g.decor[y * g.world_w + x];
+            const char* spr = NULL;
+            if (t == TERR_FOREST) {
+                static const char* trees[3] = { "mr_env_02", "mr_env_03", "mr_env_04" };
+                spr = trees[dv % 3];
+            } else if (t == TERR_HILLS || t == TERR_MOUNTAIN) {
+                static const char* rocks[3] = { "mr_env_08", "mr_env_09", "mr_env_10" };
+                if ((dv & 3) != 0) continue;   /* не на каждом тайле */
+                spr = rocks[(dv >> 2) % 3];
+            } else if (t == TERR_SWAMP) {
+                static const char* bush[2] = { "mr_env_13", "mr_env_20" };
+                if ((dv & 1) == 0) continue;
+                spr = bush[(dv >> 1) % 2];
+            }
+            if (!spr) continue;
+            Vector2 sp = world_to_screen(x * TILE_PX, y * TILE_PX);
+            float ts = TILE_PX * 1.0f * s_zoom;
+            sprite_draw_fit(spr, R(sp.x, sp.y, ts, ts), WHITE);
+        }
+    }
+
     /* --- дороги --- */
     for (int y = y0; y <= y1; y++) {
         for (int x = x0; x <= x1; x++) {
@@ -292,10 +326,8 @@ static void draw_map_screen(float dt) {
         float cx = (L->x + 0.5f) * TILE_PX, cy = (L->y + 0.5f) * TILE_PX;
         Vector2 sp = world_to_screen(cx, cy);
         float sz = TILE_PX * 1.15f * s_zoom;
-        Color tint = L->cleared ? (Color){ 140, 140, 140, 220 } : WHITE;
-        Rectangle src = { 0, 0, 96, 96 };
-        Rectangle dst = { sp.x - sz / 2, sp.y - sz / 2, sz, sz };
-        DrawTexturePro(g_tex[loc_icon_tex[L->type]], src, dst, (Vector2){ 0, 0 }, 0, tint);
+        Color tint = L->cleared ? (Color){ 150, 150, 150, 210 } : WHITE;
+        sprite_draw_fit(loc_icon_spr[L->type], R(sp.x - sz / 2, sp.y - sz / 2, sz, sz), tint);
         float d = sqrtf((mouse_w.x - cx) * (mouse_w.x - cx) + (mouse_w.y - cy) * (mouse_w.y - cy));
         if (d < TILE_PX * 0.7f && !modal) hover_loc = i;
     }
@@ -306,9 +338,7 @@ static void draw_map_screen(float dt) {
         float cx = (t->x + 0.5f) * TILE_PX, cy = (t->y + 0.5f) * TILE_PX;
         Vector2 sp = world_to_screen(cx, cy);
         float sz = TILE_PX * 1.8f * s_zoom;
-        Rectangle src = { 0, 0, 96, 96 };
-        Rectangle dst = { sp.x - sz / 2, sp.y - sz / 2, sz, sz };
-        DrawTexturePro(g_tex[town_icon_tex[t->type]], src, dst, (Vector2){ 0, 0 }, 0, WHITE);
+        sprite_draw_fit(town_icon_spr[t->type], R(sp.x - sz / 2, sp.y - sz / 2, sz, sz), WHITE);
         float d = sqrtf((mouse_w.x - cx) * (mouse_w.x - cx) + (mouse_w.y - cy) * (mouse_w.y - cy));
         if (d < TILE_PX * 0.9f && !modal) {
             hover_town = i;
@@ -328,11 +358,10 @@ static void draw_map_screen(float dt) {
     {
         float bob = sinf(s_time * 3.0f) * 3.0f;
         Vector2 sp = world_to_screen(g.party_x * TILE_PX, g.party_y * TILE_PX + bob);
-        float sz = TILE_PX * 1.0f * s_zoom;
-        Rectangle src = { 0, 0, 96, 96 };
-        Rectangle dst = { sp.x - sz / 2, sp.y - sz / 2, sz, sz };
-        DrawTexturePro(g_tex[TEX_IC_PARTY], src, dst, (Vector2){ 0, 0 }, 0, WHITE);
-        DrawCircleLines((int)sp.x, (int)sp.y, sz * 0.6f, (Color){ 230, 220, 190, 120 });
+        float sz = TILE_PX * 1.15f * s_zoom;
+        DrawCircle((int)sp.x, (int)(sp.y + sz * 0.28f), sz * 0.34f, (Color){ 230, 210, 120, 70 });
+        sprite_draw_fit("mr_unit_04", R(sp.x - sz / 2, sp.y - sz / 2, sz, sz), WHITE);
+        DrawCircleLines((int)sp.x, (int)sp.y, sz * 0.62f, (Color){ 230, 220, 190, 130 });
     }
 
     /* --- клики --- */
@@ -411,7 +440,12 @@ static void draw_item_line(Rect r, const Item* it, bool selected) {
     const ItemDef* d = &g_item_defs[it->def];
     Color c = COL_TEXT;
     if (d->slot == SLOT_SUPPLY) c = (Color){ 180, 190, 160, 255 };
-    ui_textf(R(r.x + 10, r.y + 4, r.width - 120, 22), 16, c, "%s", d->name);
+    const char* icon = item_icon_name(it->def);
+    if (icon) {
+        sprite_draw_fit(icon, R(r.x + 4, r.y + 1, 26, 26), WHITE);
+        DrawRectangleLinesEx(R(r.x + 4, r.y + 1, 26, 26), 1, (Color){ 90, 72, 52, 160 });
+    }
+    ui_textf(R(r.x + 36, r.y + 4, r.width - 152, 22), 16, c, "%s", d->name);
     if (it->durability < 100)
         ui_textf_right(R(r.x, r.y + 4, r.width - 10, 22), 14, COL_BAD, "%d%%", it->durability);
 }
@@ -946,6 +980,10 @@ static void draw_levelup_modal(void) {
 void render_frame(float dt) {
     s_time += dt;
 
+    /* запущен тактический бой — показываем его */
+    if (bt.active && !bt.finished && s_screen != SC_BATTLE && s_screen != SC_MENU)
+        s_screen = SC_BATTLE;
+
     bool modal = g.battle.active || g.pending_event.active || g.levelup_open;
 
     switch (s_screen) {
@@ -967,6 +1005,10 @@ void render_frame(float dt) {
             ui_set_blocked(modal);
             draw_topbar();
             draw_party_screen();
+            break;
+        case SC_BATTLE:
+            ui_set_blocked(false);
+            render_battle_screen(dt);
             break;
     }
 

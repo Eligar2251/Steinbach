@@ -87,169 +87,129 @@ def to_rgba(arr, alpha):
 
 
 # --------------------------------------------------------------- тайлы -----
+# Плоский стиль в духе Kenney (medieval-rts): ровные цвета, простые формы.
 
 TILE = 64
 
-
-def tile_shade(img_arr, seed, strength=18):
-    """Лёгкое затенение по углам + зерно."""
-    h, w, _ = img_arr.shape
-    n = value_noise(w, h, 16, seed, octaves=3)
-    grain = value_noise(w, h, 3, seed + 7, octaves=2) - 0.5
-    shade = (n - 0.5) * strength + grain * strength * 0.7
-    return img_arr + shade[..., None]
-
+def tile_shade(base, seed=0, veg=0):
+    """Совместимость: плоский тайл с лёгким шумом (hex или уже готовое изображение)."""
+    if isinstance(base, str):
+        w = h = TILE
+        img = np.zeros((h, w, 3), dtype=np.float32)
+        img[:] = hex2rgb(base)
+    else:
+        img = np.array(base, dtype=np.float32)
+        h, w = img.shape[:2]
+    v = value_noise(w, h, 10, seed or 1, 2) - 0.5
+    img += v[..., None] * 7
+    return img
 
 def save_tile(name, arr):
     to_img(arr).save(os.path.join(OUT, name))
 
-
-def gen_water(deep=False):
+def flat(base, seed=0):
+    """Ровный цвет + лёгкие вариации, чтобы тайл не был «пластиковым»."""
     w = h = TILE
-    seed = 11 if deep else 12
-    base = mix("#2c4f75" if deep else "#3a6d99", "#24405f" if deep else "#2f5678",
-               value_noise(w, h, 20, seed, 3))
-    # волны — горизонтальные волнистые полосы
-    ys, xs = np.mgrid[0:h, 0:w]
-    wave = np.sin(xs * 0.35 + value_noise(w, h, 26, seed + 1, 2) * 9.0) * 0.5 + 0.5
-    streak = np.clip((wave - 0.62) * 2.2, 0, 1) * (0.55 if deep else 0.8)
-    foam = mix(base, "#b8d4e2" if not deep else "#6c93b4", streak * 0.8)
-    foam = tile_shade(foam, seed + 2, 10)
-    return foam
+    img = np.zeros((h, w, 3), dtype=np.float32)
+    img[:] = hex2rgb(base)
+    v = value_noise(w, h, 10, seed or 1, 2) - 0.5
+    img += v[..., None] * 7
+    return img
 
-
-def gen_sand():
-    w = h = TILE
-    base = mix("#cdb88a", "#b39c6c", value_noise(w, h, 18, 21, 3))
-    speck = value_noise(w, h, 2.2, 22, 2)
-    base = mix(base, "#8f7a52", np.clip((speck - 0.66) * 3.0, 0, 1) * 0.5)
-    # ракушки/камешки
-    img = to_img(tile_shade(base, 23, 12)).convert("RGBA")
+def draw_on(arr, fn):
+    img = to_img(arr).convert('RGBA')
     d = ImageDraw.Draw(img)
-    rng = np.random.default_rng(24)
-    for _ in range(10):
-        x, y = rng.integers(4, TILE - 4, 2)
-        r = int(rng.integers(1, 3))
-        d.ellipse([x - r, y - r, x + r, y + r], fill=(120, 104, 74, 90))
-    return np.array(img.convert("RGB"))
-
+    fn(d)
+    return np.array(img.convert('RGB'))
 
 def gen_grass():
-    w = h = TILE
-    base = mix("#71924e", "#5c7c42", value_noise(w, h, 16, 31, 3))
-    patches = value_noise(w, h, 7, 32, 2)
-    base = mix(base, "#84a35c", np.clip((patches - 0.55) * 2.4, 0, 1) * 0.45)
-    base = mix(base, "#46603a", np.clip((0.38 - patches) * 2.4, 0, 1) * 0.5)
-    img = to_img(tile_shade(base, 33, 13)).convert("RGBA")
-    d = ImageDraw.Draw(img)
-    rng = np.random.default_rng(34)
-    for _ in range(26):
-        x, y = rng.integers(2, TILE - 2, 2)
-        l = int(rng.integers(2, 5))
-        col = (44, 74, 38, 120) if rng.random() < 0.5 else (120, 150, 82, 110)
-        d.line([x, y, x + int(rng.integers(-1, 2)), y - l], fill=col, width=1)
-    return np.array(img.convert("RGB"))
-
-
-def stamp_tree(d, x, y, r, dark, mid, light, trunk=(74, 52, 34)):
-    d.ellipse([x - r // 2, y - r // 2, x + r // 2, y + r // 2], fill=trunk)
-    d.ellipse([x - r, y - r - r // 3, x + r, y + r - r // 3], fill=dark)
-    d.ellipse([x - r + 1, y - r - r // 3 + 1, x + r - 1, y + r - r // 3 - 1], fill=mid)
-    d.ellipse([x - r + 2, y - r - r // 3 + 2, x + r // 2, y], fill=light)
-
-
-def gen_forest():
-    w = h = TILE
-    base = mix("#567840", "#405c34", value_noise(w, h, 14, 41, 3))
-    img = to_img(tile_shade(base, 42, 12)).convert("RGBA")
-    d = ImageDraw.Draw(img)
-    rng = np.random.default_rng(43)
-    pts = [(14, 20), (34, 14), (50, 26), (22, 40), (44, 44), (10, 52), (56, 52), (32, 58)]
-    rng.shuffle(pts)
-    for i, (x, y) in enumerate(pts):
-        r = int(rng.integers(7, 11))
-        stamp_tree(d, x, y, r,
-                   dark=(28, 54, 30, 255), mid=(52, 92, 48, 255), light=(86, 130, 66, 210))
-    return np.array(img.convert("RGB"))
-
-
-def gen_hills():
-    w = h = TILE
-    base = mix("#8a9a63", "#6f8050", value_noise(w, h, 16, 51, 3))
-    ys, xs = np.mgrid[0:h, 0:w]
-    for cx, cy, r in [(18, 22, 16), (46, 40, 18), (30, 52, 13)]:
-        dd = ((xs - cx) ** 2 + (ys - cy) ** 2) ** 0.5
-        bump = np.clip(1.0 - dd / r, 0, 1) ** 1.5
-        base = mix(base, "#9aa876", bump * 0.55)
-        shadow = np.clip(1.0 - ((xs - cx + 5) ** 2 + (ys - cy + 5) ** 2) ** 0.5 / r, 0, 1)
-        base = mix(base, "#54633e", shadow * 0.35)
-    base = mix(base, "#7a8a58", value_noise(w, h, 6, 52, 2) * 0.25)
-    return tile_shade(base, 53, 14)
-
-
-def gen_mountain():
-    w = h = TILE
-    base = mix("#8d867a", "#6e675d", value_noise(w, h, 18, 61, 3))
-    ys, xs = np.mgrid[0:h, 0:w]
-    # три пика
-    for cx, cy, r, snowy in [(20, 30, 20, True), (48, 44, 18, False), (38, 18, 14, True)]:
-        dd = ((xs - cx) ** 2 * 1.0 + (ys - cy) ** 2 * 1.6) ** 0.5
-        m = np.clip(1.0 - dd / r, 0, 1)
-        base = mix(base, "#9c948a", m ** 1.6 * 0.8)
-        # тень с юго-востока
-        sh = np.clip(1.0 - ((xs - cx - 6) ** 2 + (ys - cy - 7) ** 2 * 1.4) ** 0.5 / r, 0, 1)
-        base = mix(base, "#4d473f", sh * 0.5)
-        if snowy:
-            snow = np.clip(1.0 - ((xs - cx) ** 2 + (ys - cy + 4) ** 2 * 2.2) ** 0.5 / (r * 0.55), 0, 1)
-            base = mix(base, "#e6e9ee", snow ** 1.3 * 0.9)
-    ridge = value_noise(w, h, 5, 62, 2)
-    base = mix(base, "#5c554c", np.clip((0.42 - ridge) * 2.0, 0, 1) * 0.35)
-    return tile_shade(base, 63, 16)
-
-
-def gen_swamp():
-    w = h = TILE
-    base = mix("#4d5f42", "#39492f", value_noise(w, h, 15, 71, 3))
-    ys, xs = np.mgrid[0:h, 0:w]
-    for cx, cy, r in [(18, 24, 13), (44, 18, 10), (36, 46, 15), (12, 52, 9)]:
-        dd = ((xs - cx) ** 2 + (ys - cy) ** 2) ** 0.5
-        pool = np.clip(1.0 - dd / r, 0, 1)
-        base = mix(base, "#2e4038", pool ** 0.8 * 0.85)
-        ring = np.clip(1 - abs(dd - r * 0.8) / 2.5, 0, 1)
-        base = mix(base, "#5c6b3c", ring * 0.5)
-    img = to_img(tile_shade(base, 72, 12)).convert("RGBA")
-    d = ImageDraw.Draw(img)
-    rng = np.random.default_rng(73)
-    for _ in range(16):
-        x, y = rng.integers(3, TILE - 3, 2)
-        d.line([x, y, x + int(rng.integers(-2, 3)), y - int(rng.integers(4, 9))],
-               fill=(88, 104, 52, 160), width=1)
-    return np.array(img.convert("RGB"))
-
-
-def gen_snow():
-    w = h = TILE
-    base = mix("#dfe6ee", "#c2ccd9", value_noise(w, h, 18, 81, 3))
-    drift = value_noise(w, h, 6, 82, 2)
-    base = mix(base, "#eef3f8", np.clip((drift - 0.55) * 2.0, 0, 1) * 0.6)
-    base = mix(base, "#a8b6c8", np.clip((0.42 - drift) * 2.0, 0, 1) * 0.45)
-    img = to_img(tile_shade(base, 83, 10)).convert("RGBA")
-    d = ImageDraw.Draw(img)
-    rng = np.random.default_rng(84)
-    for _ in range(12):
-        x, y = rng.integers(2, TILE - 2, 2)
-        d.point((x, y), fill=(255, 255, 255, 200))
-    return np.array(img.convert("RGB"))
-
+    arr = flat('#5aa84e', 31)
+    def f(d):
+        rng = np.random.default_rng(34)
+        for _ in range(14):
+            x, y = rng.integers(4, 60, 2)
+            c = (46, 122, 58, 255) if rng.random() < 0.5 else (94, 172, 80, 255)
+            d.line([x, y, x + int(rng.integers(-1, 2)), y - 3], fill=c, width=2)
+    return draw_on(arr, f)
 
 def gen_dirt():
-    """Грязь/дорога/площадь."""
-    w = h = TILE
-    base = mix("#8a6f4c", "#6f5638", value_noise(w, h, 14, 91, 3))
-    pebbles = value_noise(w, h, 3, 92, 2)
-    base = mix(base, "#a0865e", np.clip((pebbles - 0.62) * 3, 0, 1) * 0.5)
-    return tile_shade(base, 93, 14)
+    arr = flat('#b07f4e', 91)
+    def f(d):
+        rng = np.random.default_rng(92)
+        for _ in range(10):
+            x, y = rng.integers(4, 60, 2)
+            r = int(rng.integers(1, 3))
+            d.ellipse([x - r, y - r, x + r, y + r], fill=(139, 99, 62, 255))
+    return draw_on(arr, f)
 
+def gen_sand():
+    arr = flat('#d9c48e', 21)
+    def f(d):
+        rng = np.random.default_rng(22)
+        for _ in range(9):
+            x, y = rng.integers(4, 60, 2)
+            d.point((x, y), fill=(168, 143, 92, 255))
+    return draw_on(arr, f)
+
+def gen_water():
+    arr = flat('#4f8fc4', 12)
+    def f(d):
+        for i, y in enumerate((14, 32, 50)):
+            d.arc([6 + i * 4, y, 34 + i * 4, y + 12], 200, 340, fill=(110, 172, 214, 255), width=3)
+            d.arc([30 - i * 3, y + 6, 58 - i * 3, y + 18], 200, 340, fill=(88, 152, 198, 255), width=3)
+    return draw_on(arr, f)
+
+def gen_deep():
+    arr = flat('#3a6d9c', 11)
+    def f(d):
+        d.arc([10, 20, 50, 40], 200, 340, fill=(72, 130, 176, 255), width=3)
+        d.arc([4, 38, 44, 58], 200, 340, fill=(72, 130, 176, 255), width=3)
+    return draw_on(arr, f)
+
+def gen_forest():
+    """Трава с подлеском — деревья рисуются спрайтами поверх."""
+    arr = flat('#4d8f42', 41)
+    def f(d):
+        rng = np.random.default_rng(43)
+        for _ in range(12):
+            x, y = rng.integers(4, 60, 2)
+            d.ellipse([x - 3, y - 2, x + 3, y + 2], fill=(56, 110, 52, 255))
+    return draw_on(arr, f)
+
+def gen_hills():
+    arr = flat('#8fa45c', 51)
+    def f(d):
+        d.arc([8, 26, 36, 50], 180, 360, fill=(122, 142, 78, 255), width=3)
+        d.arc([28, 16, 60, 44], 180, 360, fill=(122, 142, 78, 255), width=3)
+    return draw_on(arr, f)
+
+def gen_mountain():
+    arr = flat('#8c8c8c', 61)
+    def f(d):
+        d.polygon([(10, 52), (24, 18), (38, 52)], fill=(122, 122, 122, 255))
+        d.polygon([(24, 18), (30, 30), (18, 30)], fill=(214, 222, 230, 255))
+        d.polygon([(30, 56), (46, 22), (60, 56)], fill=(106, 106, 106, 255))
+        d.polygon([(46, 22), (52, 34), (40, 34)], fill=(214, 222, 230, 255))
+    return draw_on(arr, f)
+
+def gen_swamp():
+    arr = flat('#5d7a4c', 71)
+    def f(d):
+        d.ellipse([8, 14, 30, 30], fill=(72, 106, 78, 255))
+        d.ellipse([34, 36, 58, 54], fill=(72, 106, 78, 255))
+        d.line([18, 46, 18, 56], fill=(104, 128, 72, 255), width=2)
+        d.line([46, 16, 46, 26], fill=(104, 128, 72, 255), width=2)
+    return draw_on(arr, f)
+
+def gen_snow():
+    arr = flat('#dfe6ee', 81)
+    def f(d):
+        rng = np.random.default_rng(82)
+        for _ in range(8):
+            x, y = rng.integers(4, 60, 2)
+            d.point((x, y), fill=(255, 255, 255, 255))
+        d.arc([12, 30, 40, 52], 180, 360, fill=(196, 208, 222, 255), width=3)
+    return draw_on(arr, f)
 
 # --------------------------------------------------------------- иконки ----
 # Иконки построек/локаций — с альфа-каналом.
@@ -701,8 +661,8 @@ def gen_title():
 
 def main():
     tiles = {
-        "t_deep.png": gen_water(deep=True),
-        "t_water.png": gen_water(deep=False),
+        "t_deep.png": gen_deep(),
+        "t_water.png": gen_water(),
         "t_sand.png": gen_sand(),
         "t_grass.png": gen_grass(),
         "t_forest.png": gen_forest(),

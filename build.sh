@@ -40,7 +40,8 @@ done
 $ZIG ar rcs "$BUILD/libraylib.a" $RL_OBJS
 
 echo "== [4/4] Компиляция игры → Steinbach.exe =="
-GAME_SRCS="src/main.c src/ui.c src/render.c src/game_logic.c src/rng.c src/names.c \
+GAME_SRCS="src/main.c src/ui.c src/render.c src/render_battle.c src/battle.c \
+           src/game_logic.c src/rng.c src/names.c \
            src/worldgen.c src/items.c src/units.c src/towns.c src/econ.c \
            src/contracts.c src/events.c src/travel.c src/save.c \
            src/assets_lookup.c src/assets_gen.c"

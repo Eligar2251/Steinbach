@@ -76,4 +76,12 @@ void  ui_textf(Rect r, int size, Color c, const char* fmt, ...);
 void  ui_textf_right(Rect r, int size, Color c, const char* fmt, ...);
 void  ui_textf_center(Rect r, int size, Color c, const char* fmt, ...);
 
+/* Спрайты (assets/sprites) по имени: "mr_unit_01", "wpn_longsword", ... */
+Texture2D* sprite_get(const char* name);
+void  ui_sprite_flush(void);
+/* Иконка предмета: имя спрайта по ItemDef (может вернуть NULL) */
+const char* item_icon_name(int def);
+/* Рисование спрайта в рамке (с сохранением пропорций) */
+void  sprite_draw_fit(const char* name, Rect r, Color tint);
+
 #endif

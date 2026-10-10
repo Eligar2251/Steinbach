@@ -1,5 +1,6 @@
 /* ui.c — реализация виджетов и загрузка ресурсов. */
 #include "ui.h"
+#include "game.h"
 #include "assets_gen.h"
 #include <stdio.h>
 #include <stdarg.h>
@@ -88,6 +89,92 @@ void ui_assets_unload(void) {
     UnloadFont(g_font_body);
     UnloadFont(g_font_bold);
     UnloadFont(g_font_title);
+}
+
+/* ----------------------------------------------------------- спрайты --- */
+
+#define SPRITE_CACHE 384
+
+typedef struct {
+    char name[48];
+    Texture2D tex;
+    bool used;
+} SpriteSlot;
+
+static SpriteSlot s_sprites[SPRITE_CACHE];
+
+Texture2D* sprite_get(const char* name) {
+    static Texture2D dummy;
+    if (!name || !name[0]) return &dummy;
+    unsigned h = 5381u;
+    for (const unsigned char* p = (const unsigned char*)name; *p; p++)
+        h = h * 33u + *p;
+    for (int i = 0; i < SPRITE_CACHE; i++) {
+        int idx = (int)((h + (unsigned)i) % SPRITE_CACHE);
+        SpriteSlot* s = &s_sprites[idx];
+        if (s->used) {
+            if (strcmp(s->name, name) == 0) return &s->tex;
+            continue;
+        }
+        s->used = true;
+        snprintf(s->name, sizeof(s->name), "%s", name);
+        s->tex.id = 0;
+        unsigned int len = 0;
+        const unsigned char* d = asset_get(name, &len);
+        if (!d) return &s->tex;
+        Image img = LoadImageFromMemory(".png", d, (int)len);
+        if (img.data) {
+            s->tex = LoadTextureFromImage(img);
+            UnloadImage(img);
+            SetTextureFilter(s->tex, TEXTURE_FILTER_POINT);
+        }
+        return &s->tex;
+    }
+    return &dummy;
+}
+
+void ui_sprite_flush(void) {
+    for (int i = 0; i < SPRITE_CACHE; i++) {
+        if (s_sprites[i].used && s_sprites[i].tex.id) UnloadTexture(s_sprites[i].tex);
+        s_sprites[i].used = false;
+        s_sprites[i].tex.id = 0;
+    }
+}
+
+void sprite_draw_fit(const char* name, Rect r, Color tint) {
+    Texture2D* t = sprite_get(name);
+    if (!t || !t->id) return;
+    float sw = (float)t->width, sh = (float)t->height;
+    if (sw <= 0 || sh <= 0) return;
+    float scale = r.width / sw;
+    if (sh * scale > r.height) scale = r.height / sh;
+    Rectangle src = { 0, 0, sw, sh };
+    Rectangle dst = { r.x + (r.width - sw * scale) / 2, r.y + (r.height - sh * scale) / 2,
+                      sw * scale, sh * scale };
+    DrawTexturePro(*t, src, dst, (Vector2){ 0, 0 }, 0, tint);
+}
+
+const char* item_icon_name(int def) {
+    if (def < 0 || def >= g_item_def_count) return NULL;
+    const ItemDef* d = &g_item_defs[def];
+    switch (d->wtype) {
+        case WTYPE_SWORD:     return d->two_handed ? "wpn_greatsword" : "wpn_longsword";
+        case WTYPE_AXE:       return "wpn_shortsword";
+        case WTYPE_MACE:      return "wpn_rod";
+        case WTYPE_SPEAR:     return "sp_weapon_spear";
+        case WTYPE_POLEARM:   return "sp_weapon_pole";
+        case WTYPE_BOW:       return d->two_handed ? "wpn_greatbow" : "wpn_longbow";
+        case WTYPE_CROSSBOW:  return "wpn_shortbow";
+        case WTYPE_SHIELD:    return d->shield_def >= 15 ? "wpn_shield" : "wpn_buckler";
+        default: break;
+    }
+    switch (d->slot) {
+        case SLOT_HEAD:       return "wpn_steel_armor";
+        case SLOT_BODY:       return d->armor >= 100 ? "wpn_steel_armor" : "wpn_leather_armor";
+        case SLOT_OFFHAND:    return "wpn_buckler";
+        default: break;
+    }
+    return "wpn_clothes";
 }
 
 /* --------------------------------------------------------- виджеты ----- */

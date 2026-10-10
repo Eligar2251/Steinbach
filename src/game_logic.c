@@ -1,5 +1,6 @@
 /* game_logic.c — центральные игровые операции (без графики). */
 #include "game.h"
+#include "battle.h"
 #include "rng.h"
 #include <stdlib.h>
 #include <string.h>
@@ -252,20 +253,36 @@ void game_arrive_at(int x, int y) {
         Location* L = &g.locations[loc];
         char ename[64];
         static const char* ENEMY_NAMES[N_ENEMIES] = {
-            "Бандиты", "Волки", "Скелеты", "Гоблины", "Орки", "Нежить",
+            "Бандиты", "Разбойники", "Культисты", "Дезертиры", "Ополчение", "Наёмники",
+        };
+        static const int ENEMY_FACTION[N_ENEMIES] = {
+            BT_F_BANDITS, BT_F_RAIDERS, BT_F_CULTISTS, BT_F_DESERTERS, BT_F_MILITIA, BT_F_GUARDS
         };
         int ei = rng_range(0, N_ENEMIES - 1);
         if (L->type == LOC_RUINS) ei = 2;
         else if (L->type == LOC_CAMP) ei = 0;
         else if (L->type == LOC_FARM) ei = 1;
         snprintf(ename, sizeof(ename), "%s", ENEMY_NAMES[ei]);
-        battle_autofight(&g.battle, L->enemy_power, ename, true);
-        if (g.battle.won) {
-            L->cleared = 1;
-            g.battle.gold += L->loot_gold;
-            g.crowns += L->loot_gold;
-            if (L->loot_item != ITEM_NONE) game_add_item(L->loot_item);
+
+        /* контракт на зачистку этой локации? */
+        int ctx = BT_CTX_LOCATION, ctx_idx = loc;
+        for (int k = 0; k < MAX_CONTRACTS; k++) {
+            Contract* c = &g.contracts[k];
+            if (c->active && c->type == CONTRACT_HUNT && c->loc == loc) {
+                ctx = BT_CTX_CONTRACT;
+                ctx_idx = k;
+                break;
+            }
         }
+        /* поверхность поля боя зависит от местности */
+        int terrain = BT_T_GRASS;
+        uint8_t tt = g.terrain[(int)L->y * g.world_w + (int)L->x];
+        if (tt == TERR_SAND) terrain = BT_T_SAND;
+        else if (tt == TERR_MOUNTAIN || tt == TERR_HILLS) terrain = BT_T_STONE;
+        else if (tt == TERR_FOREST) terrain = BT_T_FOREST;
+        else if (tt == TERR_SNOW) terrain = BT_T_SAND;
+
+        bt_launch(ctx, ctx_idx, loc, ENEMY_FACTION[ei], L->enemy_power, ename, terrain, true);
     }
     contracts_check_arrival();
 }
